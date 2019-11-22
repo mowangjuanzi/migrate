@@ -167,7 +167,9 @@ $app->singleton('command.migrate.rollback', function ($app) {
 
 $app->singleton(
     Illuminate\Contracts\Console\Kernel::class, function($app) {
-        return new Application($app, app('events'), "0.0.2");
+        $application = new Application($app, app('events'), "0.0.2");
+        $application->setName('migrate');
+        return $application;
     }
 );
 

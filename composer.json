@@ -2,6 +2,7 @@
     "name": "migrate",
     "description": "Database migration tool by illuminate component",
     "require": {
+        "php": "^7.2",
         "illuminate/filesystem": "^6.5",
         "illuminate/events": "^6.5",
         "illuminate/console": "^6.5",
