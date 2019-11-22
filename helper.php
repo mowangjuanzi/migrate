@@ -11,7 +11,7 @@ if (! function_exists('database_path')) {
      */
     function database_path($path = '')
     {
-        return ROOT_PATH . DIRECTORY_SEPARATOR . 'database' . ($path ? DIRECTORY_SEPARATOR . $path : $path);
+        return app()->databasePath($path);
     }
 }
 

@@ -1,98 +1,182 @@
 <?php
 
 use Illuminate\Config\Repository;
-use Illuminate\Console\OutputStyle;
+use Illuminate\Console\Application;
 use Illuminate\Container\Container;
+use Illuminate\Contracts\Container\Container as IlluminateContainer;
+use Illuminate\Contracts\Events\Dispatcher as IlluminateDispatcher;
 use Illuminate\Database\Connectors\ConnectionFactory;
-use Illuminate\Database\Console\Migrations\TableGuesser;
+use Illuminate\Database\Console\Migrations\MigrateCommand;
+use Illuminate\Database\Console\Migrations\MigrateMakeCommand;
+use Illuminate\Database\Console\Migrations\RollbackCommand;
 use Illuminate\Database\DatabaseManager;
 use Illuminate\Database\Migrations\DatabaseMigrationRepository;
 use Illuminate\Database\Migrations\MigrationCreator;
 use Illuminate\Database\Migrations\Migrator;
 use Illuminate\Events\Dispatcher;
 use Illuminate\Filesystem\Filesystem;
-use Illuminate\Support\Facades\Facade;
-use Illuminate\Support\Str;
+use Illuminate\Support\Composer;
 use Symfony\Component\Console\Input\ArgvInput;
 use Symfony\Component\Console\Output\ConsoleOutput;
 
-define("ROOT_PATH", realpath(__DIR__));
+require './vendor/autoload.php';
 
-require ROOT_PATH . "/vendor/autoload.php";
+$app = new class extends Container {
 
-if (!isset($argv[1])) {
-    $argv[1] = null;
+    /**
+     * The base path for the Laravel installation.
+     *
+     * @var string
+     */
+    protected $basePath;
+
+    /**
+     * The custom database path defined by the developer.
+     *
+     * @var string
+     */
+    protected $databasePath;
+
+    /**
+     * Create a new Illuminate application instance.
+     *
+     * @return void
+     */
+    public function __construct()
+    {
+        $this->setBasePath(__DIR__);
+    }
+
+    /**
+     * Set the base path for the application.
+     *
+     * @param  string  $basePath
+     * @return $this
+     */
+    public function setBasePath($basePath)
+    {
+        $this->basePath = rtrim($basePath, '\/');
+
+        $this->bindPathsInContainer();
+
+        return $this;
+    }
+
+    protected function bindPathsInContainer()
+    {
+        // $this->instance('path', $this->path());
+        $this->instance('path.base', $this->basePath());
+        // $this->instance('path.lang', $this->langPath());
+        // $this->instance('path.config', $this->configPath());
+        // $this->instance('path.public', $this->publicPath());
+        // $this->instance('path.storage', $this->storagePath());
+        $this->instance('path.database', $this->databasePath());
+        // $this->instance('path.resources', $this->resourcePath());
+        // $this->instance('path.bootstrap', $this->bootstrapPath());
+    }
+
+    /**
+     * Get the path to the database directory.
+     *
+     * @param  string  $path Optionally, a path to append to the database path
+     * @return string
+     */
+    public function databasePath($path = '')
+    {
+        return ($this->databasePath ?: $this->basePath.DIRECTORY_SEPARATOR.'database').($path ? DIRECTORY_SEPARATOR.$path : $path);
+    }
+
+    /**
+     * Get the base path of the Laravel installation.
+     *
+     * @param  string  $path Optionally, a path to append to the base path
+     * @return string
+     */
+    public function basePath($path = '')
+    {
+        return $this->basePath.($path ? DIRECTORY_SEPARATOR.$path : $path);
+    }
+};
+Container::setInstance($app);
+
+foreach([
+    'app' => [IlluminateContainer::class],
+    'events' => [IlluminateDispatcher::class],
+    'config' => [Repository::class],
+] as $key => $aliases) {
+    foreach($aliases as $alias) {
+        $app->alias($key, $alias);
+    }
 }
 
-$container = new Container();
-
-$config = new Repository();
-
-$config->set("database", require 'config/database.php');
-
-$container->instance("config", $config);
-
-$file = new Filesystem();
-
-$container->singleton("db", function ($container) {
-    $db = new DatabaseManager($container, new ConnectionFactory($container));
-    $db->connection("mysql");
-    return $db;
+$app->singleton("app", function($app) {
+    return $app;
 });
 
-Facade::setFacadeApplication($container);
+$app->singleton("events", function($app) {
+    return new Dispatcher($app);
+});
 
-/**
- * 执行迁移命令如果出现 SQLSTATE[42000]: Syntax error or access violation: 1071 Specified key was too long; max key length is 767 bytes 错误则开启此行代码即可解决问题
- */
-//Builder::defaultStringLength(191);
+$app->singleton("db.factory", function($app) {
+    return new ConnectionFactory($app);
+});
 
-Container::setInstance($container);
+$app->singleton("db", function($app) {
+    return new DatabaseManager($app, $app['db.factory']);
+});
 
-$repository = new DatabaseMigrationRepository($container["db"], "migrations");
+$app->instance('config', $config = new Repository([
+    "database" => require './config/database.php'
+]));
 
-$event = new Dispatcher($container);
+$app->singleton('files', function () {
+    return new Filesystem;
+});
 
-$migrator = new Migrator($repository, $container["db"], $file, $event);
+$app->singleton("migrator", function($app) {
+    return new Migrator($app["migration.repository"], $app['db'], $app['files'], $app['events']);
+});
 
-$output = new OutputStyle(new ArgvInput(), new ConsoleOutput());
+$app->singleton("command.migrate", function($app) {
+    return new MigrateCommand($app['migrator']);
+});
 
-if ($argv[1] == "create") {
-    $creator = new MigrationCreator($file);
-    $name = Str::snake($argv[2]);
+$app->singleton("migration.repository", function($app) {
+    return new DatabaseMigrationRepository($app['db'], $app['config']['database.migrations']);
+});
 
-    [$table, $create] = TableGuesser::guess($name);
+$app->singleton('migration.creator', function ($app) {
+    return new MigrationCreator($app['files']);
+});
 
-    try {
-        $file_path = $creator->create($name, ROOT_PATH . "/migrations", $table, $create);
-        $file_path = pathinfo($file_path, PATHINFO_FILENAME);
+$app->singleton('composer', function ($app) {
+    return new Composer($app['files'], $app->basePath());
+});
 
-        $output->success("Created Migration: {$file_path}");
-    } catch (\InvalidArgumentException $exception) {
-        $output->error($exception->getMessage());
+$app->singleton('command.migrate.make', function ($app) {
+    $creator = $app['migration.creator'];
+
+    $composer = $app['composer'];
+
+    return new MigrateMakeCommand($creator, $composer);
+});
+
+$app->singleton('command.migrate.rollback', function ($app) {
+    return new RollbackCommand($app['migrator']);
+});
+
+$app->singleton(
+    Illuminate\Contracts\Console\Kernel::class, function($app) {
+        return new Application($app, app('events'), "0.0.2");
     }
-} elseif ($argv[1] == "up") {
-    if (!$migrator->repositoryExists()) { // migrate:up
-        $repository->createRepository();
-    }
-
-    $migrator->setOutput($output)->run(ROOT_PATH . "/migrations", [
-        "pretend" => false,
-        "step" => false
-    ]);
-} elseif ($argv[1] == "down") {
-    if (!$migrator->repositoryExists()) { // migrate:down
-        $repository->createRepository();
-    }
-
-    $migrator->setOutput($output)->rollback(ROOT_PATH . "/migrations", [
-        "pretend" => false,
-        "step" => 0
-    ]);
-}else {
-    $output->text('操作方法：
-php bin/migrate.php create {xxx} 创建迁移，命名规则为Laravel
-php bin/migrate.php up 执行迁移
-php bin/migrate.php down 回滚迁移'
 );
-}
+
+$console = $app->make(Illuminate\Contracts\Console\Kernel::class);
+
+$console->resolveCommands([
+    "command.migrate",
+    "command.migrate.make",
+    "command.migrate.rollback"
+]);
+
+$console->run(new ArgvInput(), new ConsoleOutput());
