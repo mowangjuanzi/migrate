@@ -1,6 +1,27 @@
 {
-    "name": "migrate",
+    "name": "wowangjuanzi/migrate",
     "description": "Database migration tool by illuminate component",
+    "keywords": [
+        "migrate",
+        "migration",
+        "illuminate",
+        "laravel",
+        "lumen"
+    ],
+    "authors": [
+        {
+            "name": "mowangjuanzi",
+            "email": "baoguoxiao0538@hotmail.com",
+            "homepage": "https://www.baoguoxiao.com",
+            "role": "Developer"
+        }
+    ],
+    "support": {
+        "email": "baoguoxiao0538@hotmail.com",
+        "issues": "https://github.com/mowangjuanzi/migrate/issues"
+    },
+    "license": "MIT",
+    "type": "project",
     "require": {
         "php": "^7.2",
         "illuminate/filesystem": "^6.5",
@@ -8,8 +29,7 @@
         "illuminate/console": "^6.5",
         "illuminate/config": "^6.5",
         "illuminate/database": "^6.5",
-        "vlucas/phpdotenv": "^3.6",
-        "doctrine/dbal": "^2.10"
+        "vlucas/phpdotenv": "^3.6"
     },
     "require-dev": {
         "symfony/var-dumper": "^4.3.4"
@@ -17,6 +37,20 @@
     "autoload": {
         "files": [
             "helper.php"
+        ]
+    },
+    "suggest": {
+        "doctrine/dbal": "Required to rename columns and drop SQLite columns (^2.6)."
+    },
+    "config": {
+        "optimize-autoloader": true,
+        "sort-packages": true
+    },
+    "prefer-stable": true,
+    "scripts": {
+        "post-root-package-install": [
+            "@php -r \"file_exists('.env') || copy('.env.example', '.env');\"",
+            "@php -r \"file_exists('artisan') || symlink('console.php', 'artisan');\""
         ]
     }
 }
