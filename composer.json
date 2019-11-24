@@ -39,9 +39,6 @@
             "helper.php"
         ]
     },
-    "suggest": {
-        "doctrine/dbal": "Required to rename columns and drop SQLite columns (^2.6)."
-    },
     "config": {
         "optimize-autoloader": true,
         "sort-packages": true

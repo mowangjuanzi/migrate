@@ -4,7 +4,7 @@ PHP版的迁移项目
 ## 执行前
 
 ```bash
-cp .env.example .env
+composer create-project wowangjuanzi/migrate
 ```
 
 ## 执行
