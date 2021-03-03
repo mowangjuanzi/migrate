@@ -24,11 +24,11 @@
     "type": "project",
     "require": {
         "php": "^7.2",
-        "illuminate/filesystem": "^6.5",
-        "illuminate/events": "^6.5",
-        "illuminate/console": "^6.5",
-        "illuminate/config": "^6.5",
-        "illuminate/database": "^6.5",
+        "illuminate/filesystem": "^6.21",
+        "illuminate/events": "^6.21",
+        "illuminate/console": "^6.21",
+        "illuminate/config": "^6.21",
+        "illuminate/database": "^6.21",
         "vlucas/phpdotenv": "^3.6"
     },
     "require-dev": {

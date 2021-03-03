@@ -230,7 +230,7 @@ $app->singleton('command.db.wipe', function () {
 });
 
 $app->singleton(Illuminate\Contracts\Console\Kernel::class, function($app) {
-        $application = new Application($app, app('events'), "0.0.3");
+        $application = new Application($app, app('events'), "0.0.4");
         $application->setName(config("app.name"));
         return $application;
     }
